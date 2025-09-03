@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestor de Convocatorias de Oposiciones</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        /* Estilos para la barra de scroll */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #1e293b;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #475569;
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #64748b;
+        }
+        .modal {
+            transition: opacity 0.3s ease, visibility 0.3s ease;
+        }
+        .modal.hidden {
+            opacity: 0;
+            visibility: hidden;
+        }
+        /* Estilo para notificar cambios sin guardar */
+        .save-needed {
+            animation: pulse-glow 1.5s infinite;
+        }
+        @keyframes pulse-glow {
+            0%, 100% {
+                box-shadow: 0 0 8px rgba(34, 197, 94, 0.4);
+            }
+            50% {
+                box-shadow: 0 0 20px rgba(34, 197, 94, 0.8);
+            }
+        }
+    </style>
+</head>
+<body class="bg-slate-900 text-gray-200 antialiased">
+
+    <div id="auth-error-banner" class="hidden bg-red-800 text-white text-center p-3 sticky top-0 z-50">
+        <strong>Error de Autenticación:</strong> Por favor, habilita el inicio de sesión anónimo en tu proyecto de Firebase para que la aplicación funcione correctamente.
+    </div>
+
+    <div class="container mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <!-- Encabezado y controles -->
+        <header class="flex flex-col sm:flex-row justify-between items-center mb-10 gap-4">
+            <h1 class="text-3xl font-bold text-white tracking-tight">Gestor de Convocatorias</h1>
+            <div class="flex items-center gap-3 sm:gap-4 w-full sm:w-auto">
+                <button id="addConvocatoriaBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition-transform transform hover:scale-105 whitespace-nowrap">
+                    Añadir Nueva
+                </button>
+                <button id="saveChangesBtn" class="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition-all transform hover:scale-105 whitespace-nowrap">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+                    <span id="saveBtnText">Guardar Cambios</span>
+                </button>
+                <button id="resetDataBtn" class="p-2.5 bg-slate-700 hover:bg-red-600 text-white font-bold rounded-lg shadow-md transition-all transform hover:scale-105 whitespace-nowrap" title="Resetear Datos">
+                     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+                </button>
+            </div>
+        </header>
+
+        <!-- Contenedor de las tarjetas -->
+        <div id="convocatorias-grid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
+            <!-- Las tarjetas se insertarán aquí dinámicamente -->
+        </div>
+        
+        <div id="no-results" class="hidden text-center py-16 text-gray-400">
+            <h3 class="text-xl font-medium">No se encontraron resultados</h3>
+        </div>
+    </div>
+    
+    <!-- Modal para añadir/editar convocatoria -->
+    <div id="convocatoriaModal" class="modal hidden fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50">
+        <div class="bg-slate-800 rounded-2xl shadow-2xl p-8 w-full max-w-2xl max-h-[90vh] overflow-y-auto transform transition-all duration-300 scale-95 opacity-0" id="modal-content">
+            <h2 id="modalTitle" class="text-2xl font-bold mb-6 text-white">Añadir Nueva Convocatoria</h2>
+            <form id="convocatoriaForm">
+                <input type="hidden" id="convocatoriaId">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- Columna Izquierda -->
+                    <div>
+                        <label for="region" class="block mb-2 text-sm font-medium text-gray-300">Comunidad Autónoma</label>
+                        <input type="text" id="region" class="bg-slate-700 border border-slate-600 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5" required>
+                    </div>
+                     <div>
+                        <label for="plazas" class="block mb-2 text-sm font-medium text-gray-300">Nº de Plazas</label>
+                        <input type="number" id="plazas" class="bg-slate-700 border border-slate-600 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5" required>
+                    </div>
+                    <div>
+                        <label for="textoConvocatoria" class="block mb-2 text-sm font-medium text-gray-300">Texto Convocatoria (URL)</label>
+                        <input type="text" id="textoConvocatoria" placeholder="https://..." class="bg-slate-700 border border-slate-600 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5">
+                    </div>
+                    <div>
+                        <label for="solicitudInscripcion" class="block mb-2 text-sm font-medium text-gray-300">Solicitud Inscripción (URL)</label>
+                        <input type="text" id="solicitudInscripcion" placeholder="https://..." class="bg-slate-700 border border-slate-600 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5">
+                    </div>
+                    <div>
+                        <label for="temario" class="block mb-2 text-sm font-medium text-gray-300">Temario (URL)</label>
+                        <input type="text" id="temario" placeholder="https://..." class="bg-slate-700 border border-slate-600 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5">
+                    </div>
+                    <div>
+                        <label for="listaAdmitidosUrl" class="block mb-2 text-sm font-medium text-gray-300">Lista Admitidos (URL)</label>
+                        <input type="text" id="listaAdmitidosUrl" placeholder="https://..." class="bg-slate-700 border border-slate-600 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5">
+                    </div>
+                     <div>
+                        <label for="autobaremoUrl" class="block mb-2 text-sm font-medium text-gray-300">Autobaremo (URL)</label>
+                        <input type="text" id="autobaremoUrl" placeholder="https://..." class="bg-slate-700 border border-slate-600 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5">
+                    </div>
+
+                     <!-- Columna Derecha -->
+                    <div>
+                        <label for="listaAdmitidos" class="block mb-2 text-sm font-medium text-gray-300">Lista de Admitidos</label>
+                        <select id="listaAdmitidos" class="bg-slate-700 border border-slate-600 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5">
+                            <option>Pendiente</option>
+                            <option>Lista provisional</option>
+                            <option>Lista definitiva</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="autobaremo" class="block mb-2 text-sm font-medium text-gray-300">Autobaremo</label>
+                         <select id="autobaremo" class="bg-slate-700 border border-slate-600 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5">
+                            <option>No disponible</option>
+                            <option>Pendiente</option>
+                            <option>Disponible</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="fechaCelebracion" class="block mb-2 text-sm font-medium text-gray-300">Fecha de Celebración</label>
+                        <input type="date" id="fechaCelebracion" class="bg-slate-700 border border-slate-600 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5" style="color-scheme: dark;">
+                    </div>
+                    <div>
+                        <label for="horaExamen" class="block mb-2 text-sm font-medium text-gray-300">Hora de examen</label>
+                        <input type="time" id="horaExamen" class="bg-slate-700 border border-slate-600 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5" style="color-scheme: dark;">
+                    </div>
+                    <div>
+                        <label for="lugarCelebracion" class="block mb-2 text-sm font-medium text-gray-300">Lugar de celebración</label>
+                        <input type="text" id="lugarCelebracion" placeholder="Ej: Facultad de Derecho" class="bg-slate-700 border border-slate-600 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5">
+                    </div>
+                </div>
+                
+                <!-- Botones del formulario -->
+                <div class="flex justify-end gap-4 mt-8">
+                    <button type="button" id="cancelBtn" class="py-2.5 px-5 text-sm font-medium text-gray-300 focus:outline-none bg-slate-700 rounded-lg border border-slate-600 hover:bg-slate-600 hover:text-white focus:z-10 focus:ring-4 focus:ring-slate-600 transition">Cancelar</button>
+                    <button type="submit" class="text-white bg-blue-600 hover:bg-blue-700 focus:ring-4 focus:outline-none focus:ring-blue-800 font-medium rounded-lg text-sm px-5 py-2.5 text-center transition">Guardar Cambios</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal de confirmación de borrado / reseteo -->
+    <div id="confirmationModal" class="modal hidden fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50">
+        <div class="bg-slate-800 rounded-2xl shadow-2xl p-8 w-full max-w-md transform transition-all duration-300 scale-95 opacity-0" id="confirmation-modal-content">
+            <h2 id="confirmationTitle" class="text-2xl font-bold mb-4 text-white">Confirmar Acción</h2>
+            <p id="confirmationMessage" class="text-gray-300 mb-6">¿Estás seguro?</p>
+            <div class="flex justify-end gap-4 mt-8">
+                <button type="button" id="cancelConfirmBtn" class="py-2.5 px-5 text-sm font-medium text-gray-300 focus:outline-none bg-slate-700 rounded-lg border border-slate-600 hover:bg-slate-600 hover:text-white focus:z-10 focus:ring-4 focus:ring-slate-600 transition">Cancelar</button>
+                <button type="button" id="confirmBtn" class="text-white bg-red-600 hover:bg-red-700 focus:ring-4 focus:outline-none focus:ring-red-800 font-medium rounded-lg text-sm px-5 py-2.5 text-center transition">Confirmar</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getFirestore, collection, onSnapshot, addDoc, doc, updateDoc, deleteDoc, writeBatch, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            // Firebase Configuration
+            const firebaseConfig = {
+              apiKey: "AIzaSyBvCL34luu8HCoUA2Zi1Mu1uyjunvJLwG0",
+              authDomain: "gestor-de-convocatorias-525a5.firebaseapp.com",
+              projectId: "gestor-de-convocatorias-525a5",
+              storageBucket: "gestor-de-convocatorias-525a5.firebasestorage.app",
+              messagingSenderId: "873543418099",
+              appId: "1:873543418099:web:969ad9be38d7e033743786"
+            };
+
+            // Initialize Firebase
+            const app = initializeApp(firebaseConfig);
+            const db = getFirestore(app);
+            const auth = getAuth(app);
+            
+            // Elementos del DOM
+            const gridContainer = document.getElementById('convocatorias-grid');
+            const addBtn = document.getElementById('addConvocatoriaBtn');
+            const saveChangesBtn = document.getElementById('saveChangesBtn');
+            const saveBtnText = document.getElementById('saveBtnText');
+            const resetDataBtn = document.getElementById('resetDataBtn');
+            const authErrorBanner = document.getElementById('auth-error-banner');
+            
+            // Modal de formulario
+            const modal = document.getElementById('convocatoriaModal');
+            const modalContent = document.getElementById('modal-content');
+            const cancelBtn = document.getElementById('cancelBtn');
+            const form = document.getElementById('convocatoriaForm');
+            const modalTitle = document.getElementById('modalTitle');
+            
+            // Modal de confirmación
+            const confirmationModal = document.getElementById('confirmationModal');
+            const confirmationModalContent = document.getElementById('confirmation-modal-content');
+            const confirmationTitle = document.getElementById('confirmationTitle');
+            const confirmationMessage = document.getElementById('confirmationMessage');
+            const cancelConfirmBtn = document.getElementById('cancelConfirmBtn');
+            const confirmBtn = document.getElementById('confirmBtn');
+
+            const noResultsDiv = document.getElementById('no-results');
+
+            // --- ESTADO DE LA APLICACIÓN ---
+            let convocatorias = [];
+            let confirmationAction = { type: null, payload: null };
+
+            const initialData = [
+                { region: 'Extremadura 2025', textoConvocatoria: '#', solicitudInscripcion: '#', listaAdmitidos: 'Lista definitiva', listaAdmitidosUrl: '#', autobaremo: 'Pendiente', autobaremoUrl: '#', temario: '#', fechaCelebracion: null, horaExamen: null, lugarCelebracion: null, plazas: 4 },
+                { region: 'Asturias 2025', textoConvocatoria: '#', solicitudInscripcion: '#', listaAdmitidos: 'Lista provisional', listaAdmitidosUrl: '#', autobaremo: 'Disponible', autobaremoUrl: '#', temario: '#', fechaCelebracion: null, horaExamen: null, lugarCelebracion: null, plazas: 46 },
+                { region: 'Aragón 2025', textoConvocatoria: '#', solicitudInscripcion: '#', listaAdmitidos: 'Pendiente', listaAdmitidosUrl: '#', autobaremo: 'Pendiente', autobaremoUrl: '#', temario: '#', fechaCelebracion: null, horaExamen: null, lugarCelebracion: null, plazas: 19 },
+                { region: 'Castilla La Mancha 2025', textoConvocatoria: '#', solicitudInscripcion: '#', listaAdmitidos: 'Pendiente', listaAdmitidosUrl: '#', autobaremo: 'Pendiente', autobaremoUrl: '#', temario: '#', fechaCelebracion: null, horaExamen: null, lugarCelebracion: null, plazas: 25 }
+            ];
+
+            // --- FUNCIONES DE DATOS ---
+            const setupRealtimeListener = () => {
+                const convocatoriasCollection = collection(db, 'convocatorias');
+                onSnapshot(convocatoriasCollection, (snapshot) => {
+                    if (snapshot.empty) {
+                        // If collection is empty, populate with initial data
+                        const batch = writeBatch(db);
+                        initialData.forEach(item => {
+                            const docRef = doc(convocatoriasCollection);
+                            batch.set(docRef, item);
+                        });
+                        batch.commit();
+                    } else {
+                        convocatorias = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                        renderCards(convocatorias);
+                    }
+                }, (error) => {
+                    console.error("Firestore listener error:", error);
+                    gridContainer.innerHTML = `<div class="text-center text-red-400 col-span-full py-16"><h3 class="text-xl font-medium">Error al cargar datos.</h3><p>Comprueba las reglas de seguridad de Firestore.</p></div>`;
+                });
+            };
+
+            // --- FUNCIONES DE RENDERIZADO ---
+            const getStatusBadge = (status) => {
+                if (!status) return '';
+                switch (status.toLowerCase()) {
+                    case 'lista definitiva': return `<span class="bg-green-900 text-green-300 text-xs font-medium px-2.5 py-0.5 rounded-full">${status}</span>`;
+                    case 'lista provisional': return `<span class="bg-yellow-900 text-yellow-300 text-xs font-medium px-2.5 py-0.5 rounded-full">${status}</span>`;
+                    case 'disponible': return `<span class="bg-blue-900 text-blue-300 text-xs font-medium px-2.5 py-0.5 rounded-full">${status}</span>`;
+                    default: return `<span class="bg-slate-700 text-slate-400 text-xs font-medium px-2.5 py-0.5 rounded-full">${status}</span>`;
+                }
+            };
+            
+            const getLink = (url, text) => {
+                if(url && url !== '#') {
+                    return `<a href="${url}" target="_blank" class="flex items-center gap-2 font-medium text-blue-500 hover:text-blue-400 transition">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.72"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.72-1.72"></path></svg>
+                                ${text}
+                            </a>`;
+                }
+                return `<span class="flex items-center gap-2 text-gray-500 cursor-not-allowed">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="2" y1="2" x2="22" y2="22"></line><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.72"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.72-1.72"></path></svg>
+                            ${text} (no disp.)
+                        </span>`;
+            };
+
+            const renderCards = (data) => {
+                gridContainer.innerHTML = '';
+                noResultsDiv.classList.toggle('hidden', data.length > 0);
+                
+                data.forEach(c => {
+                    const card = document.createElement('div');
+                    card.className = 'bg-slate-800 rounded-xl shadow-xl p-6 flex flex-col transition-all duration-300 hover:shadow-blue-500/10 hover:-translate-y-1';
+                    const fecha = c.fechaCelebracion ? new Date(c.fechaCelebracion).toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric'}) : 'Pendiente';
+                    const hora = c.horaExamen || 'Pendiente';
+                    const lugar = c.lugarCelebracion || 'Pendiente';
+
+                    card.innerHTML = `
+                        <div class="flex-grow">
+                            <div class="flex justify-between items-start mb-5">
+                                <h3 class="text-xl font-bold text-white pr-4">${c.region}</h3>
+                                <div class="text-right flex-shrink-0">
+                                    <span class="block text-2xl font-bold text-blue-400">${c.plazas}</span>
+                                    <span class="block text-xs text-slate-400 tracking-wider">PLAZAS</span>
+                                </div>
+                            </div>
+                            <div class="space-y-5">
+                                <div>
+                                    <h4 class="text-sm font-semibold text-slate-400 mb-2 border-b border-slate-700 pb-1">Estado de la Convocatoria</h4>
+                                    <div class="text-sm space-y-2 mt-2">
+                                        <p><strong class="font-medium text-gray-300 w-32 inline-block">Admitidos:</strong> ${getStatusBadge(c.listaAdmitidos)}</p>
+                                        <p><strong class="font-medium text-gray-300 w-32 inline-block">Autobaremo:</strong> ${getStatusBadge(c.autobaremo)}</p>
+                                        <p><strong class="font-medium text-gray-300 w-32 inline-block">Fecha Examen:</strong> ${fecha}</p>
+                                        <p><strong class="font-medium text-gray-300 w-32 inline-block">Hora Examen:</strong> ${hora}</p>
+                                        <p><strong class="font-medium text-gray-300 w-32 inline-block">Lugar Examen:</strong> ${lugar}</p>
+                                    </div>
+                                </div>
+                                <div>
+                                    <h4 class="text-sm font-semibold text-slate-400 mb-2 border-b border-slate-700 pb-1">Documentación</h4>
+                                    <div class="flex flex-col items-start gap-2 mt-2 text-sm">
+                                        ${getLink(c.textoConvocatoria, 'Texto Convocatoria')}
+                                        ${getLink(c.solicitudInscripcion, 'Solicitud Inscripción')}
+                                        ${getLink(c.listaAdmitidosUrl, 'Lista de Admitidos')}
+                                        ${getLink(c.autobaremoUrl, 'Autobaremo')}
+                                        ${getLink(c.temario, 'Ver Temario')}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mt-6 pt-4 border-t border-slate-700 flex justify-end items-center gap-2">
+                            <button class="edit-btn text-slate-500 hover:text-blue-500 transition" data-id="${c.id}" title="Editar">
+                               <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                            </button>
+                            <button class="delete-btn text-slate-500 hover:text-red-500 transition" data-id="${c.id}" title="Eliminar">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                            </button>
+                        </div>
+                    `;
+                    gridContainer.appendChild(card);
+                });
+            };
+
+            // --- MANEJO DE MODALES ---
+            const openModalForAdd = () => {
+                form.reset();
+                document.getElementById('convocatoriaId').value = '';
+                modalTitle.textContent = 'Añadir Nueva Convocatoria';
+                modal.classList.remove('hidden');
+                setTimeout(() => modalContent.classList.remove('scale-95', 'opacity-0'), 10);
+            };
+            
+            const openModalForEdit = (id) => {
+                const convocatoria = convocatorias.find(c => c.id === id);
+                if (!convocatoria) return;
+                form.reset();
+                modalTitle.textContent = 'Editar Convocatoria';
+                Object.keys(convocatoria).forEach(key => {
+                    const input = document.getElementById(key);
+                    if (input) {
+                         input.value = (convocatoria[key] === '#' || convocatoria[key] === null) ? '' : convocatoria[key];
+                    }
+                });
+                document.getElementById('convocatoriaId').value = convocatoria.id;
+                modal.classList.remove('hidden');
+                setTimeout(() => modalContent.classList.remove('scale-95', 'opacity-0'), 10);
+            };
+
+            const closeModal = () => {
+                modalContent.classList.add('scale-95', 'opacity-0');
+                setTimeout(() => modal.classList.add('hidden'), 300);
+            };
+
+            const openConfirmationModal = (type, payload) => {
+                confirmationAction = { type, payload };
+                if (type === 'delete') {
+                    confirmationTitle.textContent = 'Confirmar Borrado';
+                    confirmationMessage.textContent = '¿Estás seguro de que quieres eliminar esta convocatoria? Esta acción no se puede deshacer.';
+                } else if (type === 'reset') {
+                    confirmationTitle.textContent = 'Confirmar Reseteo';
+                    confirmationMessage.textContent = '¿Estás seguro de que quieres resetear todos los datos? Se perderán todos los cambios y volverás a los datos iniciales.';
+                }
+                confirmationModal.classList.remove('hidden');
+                setTimeout(() => confirmationModalContent.classList.remove('scale-95', 'opacity-0'), 10);
+            };
+
+            const closeConfirmationModal = () => {
+                confirmationModalContent.classList.add('scale-95', 'opacity-0');
+                setTimeout(() => {
+                    confirmationModal.classList.add('hidden');
+                    confirmationAction = { type: null, payload: null };
+                }, 300);
+            };
+
+            // --- EVENT LISTENERS ---
+            addBtn.addEventListener('click', openModalForAdd);
+            
+            saveChangesBtn.disabled = true;
+            saveChangesBtn.classList.remove('bg-green-600', 'hover:bg-green-700', 'save-needed');
+            saveChangesBtn.classList.add('bg-slate-600', 'cursor-not-allowed');
+            saveBtnText.textContent = 'Sincronizado';
+            
+            const resetData = async () => {
+                 const convocatoriasCollection = collection(db, 'convocatorias');
+                 const querySnapshot = await getDocs(convocatoriasCollection);
+                 const batch = writeBatch(db);
+                 querySnapshot.forEach(doc => {
+                     batch.delete(doc.ref);
+                 });
+                 initialData.forEach(item => {
+                    const docRef = doc(convocatoriasCollection);
+                    batch.set(docRef, item);
+                 });
+                 await batch.commit();
+            };
+
+            resetDataBtn.addEventListener('click', () => openConfirmationModal('reset'));
+            
+            cancelBtn.addEventListener('click', closeModal);
+            modal.addEventListener('click', (e) => e.target === modal && closeModal());
+            
+            cancelConfirmBtn.addEventListener('click', closeConfirmationModal);
+            confirmationModal.addEventListener('click', (e) => e.target === confirmationModal && closeConfirmationModal());
+            
+            confirmBtn.addEventListener('click', async () => {
+                const { type, payload } = confirmationAction;
+                const convocatoriasCollection = collection(db, 'convocatorias');
+                if (type === 'delete') {
+                    await deleteDoc(doc(db, 'convocatorias', payload));
+                } else if (type === 'reset') {
+                    await resetData();
+                }
+                closeConfirmationModal();
+            });
+
+            form.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const id = document.getElementById('convocatoriaId').value;
+                const submittedData = {
+                    region: document.getElementById('region').value,
+                    textoConvocatoria: document.getElementById('textoConvocatoria').value || '#',
+                    solicitudInscripcion: document.getElementById('solicitudInscripcion').value || '#',
+                    listaAdmitidos: document.getElementById('listaAdmitidos').value,
+                    autobaremo: document.getElementById('autobaremo').value,
+                    temario: document.getElementById('temario').value || '#',
+                    fechaCelebracion: document.getElementById('fechaCelebracion').value || null,
+                    plazas: parseInt(document.getElementById('plazas').value),
+                    listaAdmitidosUrl: document.getElementById('listaAdmitidosUrl').value || '#',
+                    autobaremoUrl: document.getElementById('autobaremoUrl').value || '#',
+                    horaExamen: document.getElementById('horaExamen').value || null,
+                    lugarCelebracion: document.getElementById('lugarCelebracion').value || null
+                };
+                
+                const convocatoriasCollection = collection(db, 'convocatorias');
+                if (id) {
+                    const docRef = doc(db, 'convocatorias', id);
+                    await updateDoc(docRef, submittedData);
+                } else {
+                    await addDoc(convocatoriasCollection, submittedData);
+                }
+                
+                closeModal();
+            });
+
+            gridContainer.addEventListener('click', (e) => {
+                const deleteBtn = e.target.closest('.delete-btn');
+                if (deleteBtn) {
+                    const idToDelete = deleteBtn.getAttribute('data-id');
+                    openConfirmationModal('delete', idToDelete);
+                }
+                
+                const editBtn = e.target.closest('.edit-btn');
+                if(editBtn) {
+                    const idToEdit = editBtn.getAttribute('data-id');
+                    openModalForEdit(idToEdit);
+                }
+            });
+
+            // --- INICIALIZACIÓN ---
+            try {
+                await signInAnonymously(auth);
+                // Si la autenticación es exitosa, configuramos el listener de la base de datos.
+                setupRealtimeListener();
+            } catch (error) {
+                 // Si la autenticación falla, mostramos los errores y deshabilitamos la app.
+                 console.error("Authentication Error: Make sure Anonymous Sign-in is enabled in your Firebase project.", error);
+                 authErrorBanner.classList.remove('hidden');
+                 addBtn.disabled = true;
+                 resetDataBtn.disabled = true;
+                 saveChangesBtn.disabled = true;
+                 addBtn.classList.add('opacity-50', 'cursor-not-allowed');
+                 resetDataBtn.classList.add('opacity-50', 'cursor-not-allowed');
+                 saveChangesBtn.classList.add('opacity-50', 'cursor-not-allowed');
+                 gridContainer.innerHTML = `<div class="text-center text-red-400 col-span-full py-16"><h3 class="text-xl font-medium">Error de Autenticación</h3><p>No se pudo iniciar sesión. Por favor, asegúrate de que el inicio de sesión anónimo esté habilitado en la configuración de Firebase y que las reglas de seguridad son correctas.</p></div>`;
+            }
+        });
+    </script>
+</body>
+</html>
+
